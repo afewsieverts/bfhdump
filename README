@@ -1,0 +1,9 @@
+Baby's first hexdump.
+Written in x86_64 asm, also my first attempt at doing anything with the language.
+Compile with 
+nasm -f elf64 main.asm
+Link with
+ld -o bfh main.o
+
+Usage:
+./bfh > dump < targetfile
