@@ -6,4 +6,4 @@ Link with
 ld -o bfh main.o
 
 Usage:
-./bfh > dump < targetfile
+./bfh < targetfile
