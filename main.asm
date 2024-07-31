@@ -47,7 +47,7 @@ READ:
     xor rcx, rcx        ; rcx as a counter for numstr, at the moment we handle a max of 0xFFFFFFFF lines
     xor rdx, rdx        ; we will use dl and rdx to store the values at DIGITS[n] to write into numstr
    
-    mov rcx, 7               ; writing left to right
+    mov rcx, 7               ; writing right to left
 LINENUM:                     ; there's probably way better ways to do this
     mov rax, r10             ; overall counter into rax
     and al, 00Fh             ; working with 8 bits, 0 the most significant nibble 
