@@ -2,7 +2,7 @@
 ; It takes data from stdin and spits it out to stdout
 ; usage ./bfh < targetfile
 
-%define BUFFLEN 16 ; files are read in 16 byte chunks for convenience's sake for now
+%define BUFFLEN 16
 
 section .bss
     buffer: resb BUFFLEN  ; reserves a buffer for read syscall
@@ -50,27 +50,18 @@ READ:
     mov rcx, 7               ; writing left to right
 LINENUM:                     ; there's probably way better ways to do this
     mov rax, r10             ; overall counter into rax
-    and al, 00Fh             ; working with 8 bits, 0 the most significant nybble 
+    and al, 00Fh             ; working with 8 bits, 0 the most significant nibble 
     mov dl, al               ; moving into dl because who knows what's in the rest of rax 
     mov dl, byte [rbx + rdx] ; setting dl to DIGITS[dl] 
     mov byte [r11 + rcx], dl ; writing dl to numstr[rcx]
     dec rcx                  ; rcx--
-
-    mov rax, r10             ; original counter back to rax
-    shr al, 4                ; move most significant nybble least significant
-    and al, 00Fh             ; 0 the now most significant nybble
-    mov dl, al               
-    mov dl, byte [rbx + rdx]
-    mov byte [r11 + rcx], dl
+    cmp rcx, 0               ; check if we have finished the space in LINENUM
+    jb CONTINUE              
+    cmp r10, 0Fh             ; check if we have handled all of r10
+    jb CONTINUE
+    shr r10, 4               ; if not shift a nibble to right
+    jmp LINENUM
     
-    dec rcx
-    jz CONTINUE             ; if we have written into all 8 fields we'll have to live with it
-    
-    cmp r10, 100h           ; here we check if the overall counter is more than 1 byte, if not we have handled it fully
-    jb CONTINUE 
-    shr r10, 8              ; shift right 1 byte
-    jmp LINENUM             
-
     
 CONTINUE:
     xor rax, rax            ; putting 0 in these registers to avoid any undefined behaviour
@@ -84,11 +75,11 @@ SCAN:
     cmp al, 7Eh             ; and '~'
     ja HEXDUMP
     mov byte [r9], al       ; if it is we write the char in chrstr[n] 
-
+    
 HEXDUMP:
     mov cl, al               ; buffer[n] copied into cl as well (I assume this is faster than mov al, byte [rsi] twice, or push)
-    shr al, 4                ; most significant nybble in the least significant into al
-    and cl, 00Fh             ; 0 most significant nybble in cl 
+    shr al, 4                ; most significant nibble in the least significant into al
+    and cl, 00Fh             ; 0 most significant nibble in cl 
     mov dl, byte [rbx + rax] ; dl with DIGITS[al] 
     mov byte [rdi], dl       ; hexstr[n] = dl 
     inc rdi                  ; n + 1
@@ -109,24 +100,26 @@ HEXDUMP:
     mov rdx, HEXLEN
     syscall
 
-    xor rax, rax            ; 0 rax because now we are going to use it to cleanup our strings
-    mov r9, chrstr          ; I originally wanted to subtract 15 from r9, but then realised that the syscall may have affected it
-CLEANCHARSTR:
-    mov byte [r9+rax], 2Eh  ; reset to '.'
-    inc rax                  
-    cmp rax, r15            ; have we handled all 16 chars? (r15 seems unaffected by write syscall, but maybe this can cause undefined behaviour)
-    jne CLEANCHARSTR
-    
-    xor rax, rax            ; 0 again, now we are handling chrstr cleanup
-    mov r11, numstr         ; r11 is definitely affected by syscalls
+    cmp rax, 0
+    jb QUIT_WITH_ERROR        ; negative values indicate syscall write error
+
+
+    xor rax, rax
+    mov r9, chrstr           ; reassign as syscalls may have changed regs
+    mov r11, numstr
 CLEANNUMSTR:
-    mov byte [r11+rax], 30h ; write 0 into all 8 fields
+    mov byte [r11 + rax], 30h ; reset to '0'
+CLEANCHARSTR:
+    mov byte [r9 + rax], 2Eh  ; reset to '.'
     inc rax
-    cmp rax, 8
-    jne CLEANNUMSTR         ; there's probably a clever way to do both cleanups at the same time
+    cmp rax, 8                ; len(numstr) = 8
+    jl CLEANNUMSTR
+    cmp rax, 16               ; len(charstr) = 16
+    jl CLEANCHARSTR
     
-    pop r10                 ; retrieve r10 from the stack
-    add r10, r15            ; increase it with the operations performed
+    pop r10                ; retrieve r10 from the stack
+    add r10, 16            ; increase it with the operations performed
+
     jmp READ                ; back to the top!
 
 QUIT:
