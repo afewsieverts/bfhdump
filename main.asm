@@ -41,18 +41,18 @@ READ:
     mov rdi, hexstr     ; *hexstr
     inc rdi             ; buffer[1] as [0] is ' ' for readability
     xor r8, r8          ; 0 in r8 as we use it as a counter for buffer
-    mov rbx, DIGITS     ; *DIGITS
+    ;mov rbx, DIGITS     ; *DIGITS
     mov r9, chrstr      ; *chrstr
     mov r11, numstr     ; *numstr
     xor rcx, rcx        ; rcx as a counter for numstr, at the moment we handle a max of 0xFFFFFFFF lines
     xor rdx, rdx        ; we will use dl and rdx to store the values at DIGITS[n] to write into numstr
    
-    mov rcx, 7               ; writing left to right
+    mov rcx, 7               ; writing right to left
 LINENUM:                     ; there's probably way better ways to do this
     mov rax, r10             ; overall counter into rax
     and al, 00Fh             ; working with 8 bits, 0 the most significant nibble 
     mov dl, al               ; moving into dl because who knows what's in the rest of rax 
-    mov dl, byte [rbx + rdx] ; setting dl to DIGITS[dl] 
+    mov dl, byte [DIGITS + rdx] ; setting dl to DIGITS[dl] 
     mov byte [r11 + rcx], dl ; writing dl to numstr[rcx]
     dec rcx                  ; rcx--
     cmp rcx, 0               ; check if we have finished the space in LINENUM
@@ -80,10 +80,10 @@ HEXDUMP:
     mov cl, al               ; buffer[n] copied into cl as well (I assume this is faster than mov al, byte [rsi] twice, or push)
     shr al, 4                ; most significant nibble in the least significant into al
     and cl, 00Fh             ; 0 most significant nibble in cl 
-    mov dl, byte [rbx + rax] ; dl with DIGITS[al] 
+    mov dl, byte [DIGITS + rax] ; dl with DIGITS[al] 
     mov byte [rdi], dl       ; hexstr[n] = dl 
     inc rdi                  ; n + 1
-    mov dl, byte [rbx + rcx] ; dl with DIGITS[cl]
+    mov dl, byte [DIGITS + rcx] ; dl with DIGITS[cl]
     mov byte [rdi], dl       ; hexstr[n] = dl
     inc rdi                  
     inc rdi ; HEXSTR[rdi+2]  skipping the space
