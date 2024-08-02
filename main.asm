@@ -6,6 +6,7 @@
 
 section .bss
     buffer: resb BUFFLEN  ; reserves a buffer for read syscall
+               ;012345678
 
 section .data
     numstr: db "00000000:"                                            ; line number
@@ -25,7 +26,7 @@ _start:
     xor r10, r10        ; r10 is the overall counter for numstr
 
 READ:
-    push r10            ; push r10 to the stack because read and write syscall can change it
+    push r10            ; push r10 to the stack because write syscall can change it
     xor rax, rax        ; x64 linux syscall rax 0, rdi 0, rsi char * buffer, rdx # of chars to read
     xor rdi, rdi        
     mov rsi, buffer
@@ -43,7 +44,7 @@ READ:
     xor r8, r8          ; 0 in r8 as we use it as a counter for buffer
     ;mov rbx, DIGITS     ; *DIGITS
     mov r9, chrstr      ; *chrstr
-    mov r11, numstr     ; *numstr
+    ;mov r11, numstr     ; *numstr
     xor rcx, rcx        ; rcx as a counter for numstr, at the moment we handle a max of 0xFFFFFFFF lines
     xor rdx, rdx        ; we will use dl and rdx to store the values at DIGITS[n] to write into numstr
    
@@ -53,7 +54,7 @@ LINENUM:                     ; there's probably way better ways to do this
     and al, 00Fh             ; working with 8 bits, 0 the most significant nibble 
     mov dl, al               ; moving into dl because who knows what's in the rest of rax 
     mov dl, byte [DIGITS + rdx] ; setting dl to DIGITS[dl] 
-    mov byte [r11 + rcx], dl ; writing dl to numstr[rcx]
+    mov byte [numstr + rcx], dl ; writing dl to numstr[rcx]
     dec rcx                  ; rcx--
     cmp rcx, 0               ; check if we have finished the space in LINENUM
     jb CONTINUE              
@@ -65,30 +66,27 @@ LINENUM:                     ; there's probably way better ways to do this
     
 CONTINUE:
     xor rax, rax            ; putting 0 in these registers to avoid any undefined behaviour
-    xor rdx, rdx
+    xor rbx, rbx
     xor rcx, rcx
+    xor rdx, rdx
 
 SCAN:
-    mov al, byte [rsi]      ; buffer[n] into rax
+    mov al, byte [buffer + rcx]      ; buffer[n] into rax
     cmp al, 20h             ; we check if its value is meaningful as a char in ascii between the range of ' '
     jb HEXDUMP              
     cmp al, 7Eh             ; and '~'
     ja HEXDUMP
-    mov byte [r9], al       ; if it is we write the char in chrstr[n] 
+    mov byte [chrstr + rcx], al       ; if it is we write the char in chrstr[n] 
     
 HEXDUMP:
-    mov cl, al               ; buffer[n] copied into cl as well (I assume this is faster than mov al, byte [rsi] twice, or push)
-    shr al, 4                ; most significant nibble in the least significant into al
-    and cl, 00Fh             ; 0 most significant nibble in cl 
-    mov dl, byte [DIGITS + rax] ; dl with DIGITS[al] 
-    mov byte [rdi], dl       ; hexstr[n] = dl 
-    inc rdi                  ; n + 1
-    mov dl, byte [DIGITS + rcx] ; dl with DIGITS[cl]
-    mov byte [rdi], dl       ; hexstr[n] = dl
-    inc rdi                  
-    inc rdi ; HEXSTR[rdi+2]  skipping the space
-    inc r9  ; CHRSTR[r9+1]   aligning the chrstr
-    inc rsi ; BUFFER[rsi+1]  moving to the next read
+    mov bl, al                  ; buffer[n] into cl as well (I assume this is faster than mov al, byte [rsi] twice, or push)
+    shr al, 4                                           ; most significant nibble in the least significant into al
+    and bl, 00Fh                                        ; 0 most significant nibble in cl 
+    mov dl, byte [DIGITS + rax]                         ; dl with DIGITS[al] 
+    mov byte [hexstr + rcx * 2 + rcx + 1], dl           ; hexstr[n* 3 + 1] = dl 
+    mov dl, byte [DIGITS + rbx]                         ; dl with DIGITS[cl]
+    mov byte [hexstr + rcx * 2 + rcx + 2], dl           ; hexstr[n*3 + 2] = dl
+    inc rcx
 
     inc r8                  
     cmp r8, r15             ; have we handled all 16 chars?
@@ -105,12 +103,10 @@ HEXDUMP:
 
 
     xor rax, rax
-    mov r9, chrstr           ; reassign as syscalls may have changed regs
-    mov r11, numstr
 CLEANNUMSTR:
-    mov byte [r11 + rax], 30h ; reset to '0'
+    mov byte [numstr + rax], 30h ; reset to '0'
 CLEANCHARSTR:
-    mov byte [r9 + rax], 2Eh  ; reset to '.'
+    mov byte [chrstr + rax], 2Eh  ; reset to '.'
     inc rax
     cmp rax, 8                ; len(numstr) = 8
     jl CLEANNUMSTR
