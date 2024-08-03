@@ -9,12 +9,12 @@ section .bss
                ;012345678
 
 section .data
-    numstr: db "00000000:"                                            ; line number
-    hexstr: db " 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   "  ; hex  string
-    chrstr: db "................", 10                                 ; ascii chars from hex + \n
-    HEXLEN: equ $-numstr                                              ; len of the numstr+hexstr+chrstr for write syscall
+    numstr: db "00000000:"                                          ; line number
+    hexstr: db " 0000 0000 0000 0000 0000 0000 0000 0000 ", 20h     ; hex  string
+    chrstr: db "................", 0Ah                              ; ascii chars from hex + \n
+    HEXLEN: equ $-numstr                                            ; len of the numstr+hexstr+chrstr for write syscall
 
-    DIGITS: db "0123456789ABCDEF"                                     ; string of chars for substitution
+    DIGITS: db "0123456789ABCDEF"                                   ; string of chars for substitution
 
 section .text
 
@@ -38,8 +38,9 @@ READ:
     jb QUIT_WITH_ERROR
 
     mov r15, rax        ; len of read chars
-    xor r8, r8          ; 0 in r8 as we use it as a counter for buffer
     xor rdx, rdx        ; we will use dl and rdx to store the values at DIGITS[n] to write into numstr
+    mov rsi, hexstr
+    inc rsi
 
     mov rcx, 7               ; writing right to left
 LINENUM:                     ; there's probably way better ways to do this
@@ -76,10 +77,17 @@ HEXDUMP:
     shr al, 4                                           ; most significant nibble in the least significant into al
     and bl, 00Fh                                        ; 0 most significant nibble in cl 
     mov dl, byte [DIGITS + rax]                         ; dl with DIGITS[al] 
-    mov byte [hexstr + rcx * 2 + rcx + 1], dl           ; hexstr[n* 3 + 1] = dl 
+    mov byte [rsi], dl                             ; hexstr[n* 3 + 1] = dl 
+    inc rsi
     mov dl, byte [DIGITS + rbx]                         ; dl with DIGITS[cl]
-    mov byte [hexstr + rcx * 2 + rcx + 2], dl           ; hexstr[n*3 + 2] = dl
+    mov byte [rsi], dl                             ; hexstr[n*3 + 2] = dl
+    inc rsi
     inc rcx
+    mov dl, byte[rsi] 
+    cmp dl, 020h
+    jne .L1
+    inc rsi
+    .L1:
 
     cmp rcx, r15             ; have we handled all 16 chars?
     jne SCAN
@@ -139,4 +147,3 @@ QUIT_WITH_ERROR:
     mov rdi, rax            ; error exit code will be negative (whatever read syscall has spat back)
     mov rax, 60
     syscall
-    ;afds
