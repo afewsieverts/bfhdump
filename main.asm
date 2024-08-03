@@ -38,16 +38,9 @@ READ:
     jb QUIT_WITH_ERROR
 
     mov r15, rax        ; len of read chars
-    mov rsi, buffer     ; *buffer
-    mov rdi, hexstr     ; *hexstr
-    inc rdi             ; buffer[1] as [0] is ' ' for readability
     xor r8, r8          ; 0 in r8 as we use it as a counter for buffer
-    ;mov rbx, DIGITS     ; *DIGITS
-    mov r9, chrstr      ; *chrstr
-    ;mov r11, numstr     ; *numstr
-    xor rcx, rcx        ; rcx as a counter for numstr, at the moment we handle a max of 0xFFFFFFFF lines
     xor rdx, rdx        ; we will use dl and rdx to store the values at DIGITS[n] to write into numstr
-   
+
     mov rcx, 7               ; writing right to left
 LINENUM:                     ; there's probably way better ways to do this
     mov rax, r10             ; overall counter into rax
@@ -88,9 +81,10 @@ HEXDUMP:
     mov byte [hexstr + rcx * 2 + rcx + 2], dl           ; hexstr[n*3 + 2] = dl
     inc rcx
 
-    inc r8                  
-    cmp r8, r15             ; have we handled all 16 chars?
+    cmp rcx, r15             ; have we handled all 16 chars?
     jne SCAN
+    cmp r15, 16
+    jb CLEANHEXSTR          
     
     mov rax, 1              ; x64 write syscall to stdout, rax 1, rdi 1, rsi *string, rdx len of str
     mov rdi, rax
@@ -118,12 +112,31 @@ CLEANCHARSTR:
 
     jmp READ                ; back to the top!
 
+CLEANHEXSTR:                ; jumped to when the final chunk to print has less than 16 bytes
+    lea rcx, [rcx * 2 + rcx]
+    mov rax, hexstr
+    add rax, rcx
+    mov rbx, chrstr
+    sub rbx, 2
+    .L1:
+    mov byte [rax], 20h
+    inc rax
+    cmp rax, rbx
+    jb .L1
+    
+    mov rax, 1              ; x64 write syscall to stdout, rax 1, rdi 1, rsi *string, rdx len of str
+    mov rdi, rax
+    mov rsi, numstr
+    mov rdx, HEXLEN
+    syscall
+
 QUIT:
-    mov rax, 60             ; x64 exit syscall, rax 60, rbx 0 (exit with 0 code)
-    mov rbx, 0
+    mov rax, 60             ; x64 exit syscall, rax 60, rdi 0 (exit with 0 code)
+    mov rdi, 0
     syscall
 
 QUIT_WITH_ERROR:
-    mov rbx, rax            ; error exit code will be negative (whatever read syscall has spat back)
+    mov rdi, rax            ; error exit code will be negative (whatever read syscall has spat back)
     mov rax, 60
     syscall
+    ;afds
